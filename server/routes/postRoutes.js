@@ -1,51 +1,48 @@
 const express = require("express");
 const router = express.Router();
-const Post = require("../models/Post");
+const mongoose = require("mongoose");
 
-// ✅ FIX: Ensure this points to 'authMiddleware'
-const { protect, isStartup, isCorporate } = require("../middleware/authMiddleware");
+// 1. Import the Model
+// Note: Ensure your model file is named 'StartupPost.js' in the models folder
+const Post = require("../models/StartupPost"); 
 
-// CREATE POST (STARTUP)
-router.post("/", protect, isStartup, async (req, res) => {
-  try {
-    const post = await Post.create({
-      text: req.body.text, 
-      author: req.user.id,
-      authorName: req.user.name,
-      authorCompany: req.user.companyName
-    });
-    res.json(post);
-  } catch (err) {
-    res.status(500).json({ message: "Post creation failed" });
-  }
-});
+// 2. Import Middleware
+const { protect } = require("../middleware/authMiddleware");
 
-// GET ALL POSTS (EVERYONE)
+// -------------------------
+// GET ALL POSTS
+// -------------------------
 router.get("/", protect, async (req, res) => {
   try {
+    // Get posts and sort by newest first
     const posts = await Post.find().sort({ createdAt: -1 });
     res.json(posts);
   } catch (err) {
-    res.status(500).json({ message: "Failed to fetch posts" });
+    console.error("Error fetching posts:", err);
+    res.status(500).json({ message: "Server Error" });
   }
 });
 
-// LIKE / INTEREST (CORPORATE)
-router.put("/like/:id", protect, isCorporate, async (req, res) => {
+// -------------------------
+// CREATE NEW POST
+// -------------------------
+router.post("/", protect, async (req, res) => {
   try {
-    const post = await Post.findById(req.params.id);
-    if (!post) return res.status(404).json({ message: "Post not found" });
+    const { content, image } = req.body;
 
-    // Check if already liked
-    if (post.likes.includes(req.user.id)) {
-      return res.json({ message: "Already interested" }); // Return early to avoid error
-    }
+    const newPost = new Post({
+      user: req.user.id, // Comes from the token (protect middleware)
+      content,
+      image: image || "", // Optional image
+      likes: [],
+      comments: []
+    });
 
-    post.likes.push(req.user.id);
-    await post.save();
-    res.json(post.likes);
+    const savedPost = await newPost.save();
+    res.status(201).json(savedPost);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Error creating post:", err);
+    res.status(500).json({ message: "Server Error" });
   }
 });
 

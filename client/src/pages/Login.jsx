@@ -1,130 +1,204 @@
 import React, { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../Context/AuthContext";
-import { useNavigate, Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [role, setRole] = useState("startup"); 
+  const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    setIsSubmitting(true);
+    setLoading(true);
 
-    const result = await login(email, password);
+    try {
+        const result = await login(formData.email, formData.password);
+        
+        if (result.success) {
+            // ⭐ LOGIC: Where do they go?
+            
+            // 1. If New User -> Onboarding
+            if (result.isNewUser) {
+                navigate("/onboarding");
+                return;
+            }
 
-    if (result.success) {
-      navigate("/dashboard");
-    } else {
-      setError(result.message || "Invalid credentials");
-      setIsSubmitting(false);
+            // 2. If Returning User -> Check Role
+            // Normalize role to lowercase to prevent errors
+            let targetRole = (result.role || role).toLowerCase();
+            
+            if (targetRole === 'corporate') {
+                // ⭐ FIX: Send Old Corporate users to the Active Dashboard
+                navigate("/corporate-active");
+            } else if (targetRole === 'admin') {
+                navigate("/admin");
+            } else {
+                // ⭐ STARTUP: Go to Active Dashboard (Charts & Data)
+                navigate("/dashboard-active"); 
+            }
+        } else {
+            setError(result.message || "Invalid credentials.");
+        }
+    } catch (err) {
+        console.error("Login Error:", err);
+        setError("System error. Please try again.");
+    } finally {
+        setLoading(false);
     }
   };
 
+  // Dynamic Theme Colors
+  const isStartup = role === "startup";
+  const theme = isStartup 
+    ? { 
+        gradient: "from-indigo-600 to-violet-600", 
+        glow: "shadow-[0_0_40px_-10px_rgba(79,70,229,0.5)]",
+        border: "focus:border-indigo-500",
+        text: "text-indigo-400",
+        bg: "bg-indigo-600",
+        label: "Founder Access"
+      }
+    : { 
+        gradient: "from-cyan-600 to-teal-600", 
+        glow: "shadow-[0_0_40px_-10px_rgba(6,182,212,0.5)]",
+        border: "focus:border-cyan-500",
+        text: "text-cyan-400",
+        bg: "bg-cyan-600",
+        label: "Partner Portal"
+      };
+
   return (
-    <div className="min-h-screen grid md:grid-cols-2 bg-[#0B0C10] text-slate-300 font-sans">
+    <div className="min-h-screen bg-[#050505] flex items-center justify-center p-4 relative overflow-hidden font-sans text-slate-300 selection:bg-indigo-500 selection:text-white">
       
-      {/* LEFT SIDE: Brand / Visual */}
-      <div className="relative hidden md:flex flex-col justify-center px-16 bg-[#0E0F14] overflow-hidden">
-        {/* Background Effects */}
-        <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-5 pointer-events-none"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[100px]"></div>
+      {/* 🌌 HI-TECH BACKGROUND GRID */}
+      <div className="absolute inset-0 z-0">
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+          <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] rounded-full blur-[120px] opacity-20 transition-colors duration-1000 ${isStartup ? 'bg-indigo-600' : 'bg-cyan-600'}`}></div>
+      </div>
 
-        <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold italic text-xl shadow-lg shadow-indigo-600/20">C</div>
-            <span className="text-2xl font-bold text-white tracking-tight">Connect<span className="text-indigo-500">X</span></span>
-          </div>
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-md relative z-10"
+      >
+        
+        {/* LOGO */}
+        <div className="flex flex-col items-center mb-10">
+           <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white font-black text-2xl shadow-2xl mb-4 bg-gradient-to-br ${theme.gradient} ring-1 ring-white/20`}>
+             {/* Changed L to I */}
+             I
+           </div>
+           <h1 className="text-3xl font-black text-white tracking-tighter">
+             {/* Changed LETSCONNECT to INNOBRIDGE */}
+             INNO<span className={`transition-colors duration-500 ${theme.text}`}>BRIDGE</span>
+           </h1>
+           <p className="text-slate-500 text-sm font-medium tracking-widest uppercase mt-1">
+             {theme.label}
+           </p>
+        </div>
+
+        <div className="bg-[#0F111A]/80 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-2xl relative overflow-hidden">
           
-          <h1 className="text-5xl font-extrabold text-white mb-6 leading-tight">
-            The Operating System for <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">Corporate Innovation.</span>
-          </h1>
-          <p className="text-lg text-slate-500 max-w-md leading-relaxed">
-            Securely access your deal flow, manage pilots, and track innovation metrics from one terminal.
-          </p>
+          {/* Top Line Glow */}
+          <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${theme.gradient}`}></div>
 
-          <div className="mt-12 flex gap-8">
-            <div>
-              <div className="text-3xl font-bold text-white">500+</div>
-              <div className="text-xs text-slate-500 uppercase tracking-widest mt-1">Partners</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold text-white">$2.4B</div>
-              <div className="text-xs text-slate-500 uppercase tracking-widest mt-1">Deal Flow</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* RIGHT SIDE: Login Form */}
-      <div className="flex items-center justify-center p-8 bg-[#0B0C10]">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>
-            <p className="text-sm text-slate-500">Enter your enterprise credentials to continue.</p>
+          {/* 🔘 ROLE TOGGLE */}
+          <div className="bg-[#050505] p-1 rounded-xl flex mb-8 border border-white/10 relative">
+              <motion.div 
+                className={`absolute top-1 bottom-1 rounded-lg bg-gradient-to-r ${theme.gradient} shadow-lg`}
+                layoutId="slider"
+                initial={false}
+                animate={{
+                  left: isStartup ? '4px' : '50%',
+                  width: 'calc(50% - 4px)',
+                }}
+                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              />
+              
+              <button onClick={() => setRole("startup")} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider relative z-10 transition-colors ${isStartup ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                Startup
+              </button>
+              <button onClick={() => setRole("corporate")} className={`flex-1 py-2 rounded-lg text-xs font-bold uppercase tracking-wider relative z-10 transition-colors ${!isStartup ? 'text-white' : 'text-slate-500 hover:text-slate-300'}`}>
+                Corporate
+              </button>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {error && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-red-400 text-sm text-center">
-                {error}
+          {/* FORM */}
+          <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                 <label className="text-[10px] font-bold uppercase text-slate-500 mb-1.5 block tracking-widest">Email Address</label>
+                 <input 
+                   type="email" 
+                   name="email" 
+                   required 
+                   onChange={handleChange}
+                   className={`w-full bg-[#050505] border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none transition-all focus:border-opacity-100 focus:ring-0 ${theme.border}`}
+                   placeholder={isStartup ? "founder@startup.com" : "admin@company.com"} 
+                 />
               </div>
-            )}
+              
+              <div>
+                 <label className="text-[10px] font-bold uppercase text-slate-500 mb-1.5 block tracking-widest">Password</label>
+                 <input 
+                   type="password" 
+                   name="password" 
+                   required 
+                   onChange={handleChange}
+                   className={`w-full bg-[#050505] border border-white/10 rounded-xl px-4 py-3 text-white text-sm outline-none transition-all focus:border-opacity-100 focus:ring-0 ${theme.border}`}
+                   placeholder="••••••••" 
+                 />
+              </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Work Email</label>
-              <input
-                type="email"
-                required
-                className="w-full bg-[#15161b] border border-white/10 rounded-xl px-4 py-4 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all placeholder:text-slate-600"
-                placeholder="name@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
+              <div className="flex justify-between items-center text-xs">
+                 <label className="flex items-center gap-2 cursor-pointer text-slate-400 hover:text-white transition-colors">
+                    <input type="checkbox" className={`rounded bg-white/5 border-white/10 ${theme.text} focus:ring-0`} />
+                    Remember me
+                 </label>
+                 <Link to="#" className="text-slate-500 hover:text-white transition-colors">Forgot password?</Link>
+              </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Password</label>
-              <input
-                type="password"
-                required
-                className="w-full bg-[#15161b] border border-white/10 rounded-xl px-4 py-4 text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all placeholder:text-slate-600"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+              <AnimatePresence>
+                {error && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }} 
+                    animate={{ opacity: 1, height: 'auto' }} 
+                    exit={{ opacity: 0, height: 0 }}
+                    className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-lg text-center font-medium"
+                  >
+                    {error}
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" className="rounded border-white/10 bg-white/5 text-indigo-500 focus:ring-0" />
-                <span className="text-slate-400">Remember device</span>
-              </label>
-              <a href="#" className="text-indigo-400 hover:text-indigo-300 transition-colors">Forgot password?</a>
-            </div>
-
-            <button
-              disabled={isSubmitting}
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-600/20 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? "Authenticating..." : "Initialize Session"}
-            </button>
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                disabled={loading}
+                className={`w-full py-3.5 rounded-xl text-white font-bold text-sm uppercase tracking-widest shadow-lg ${theme.glow} bg-gradient-to-r ${theme.gradient} transition-all disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    Authenticating...
+                  </span>
+                ) : "Access Dashboard"}
+              </motion.button>
           </form>
-
-          <p className="mt-8 text-center text-slate-500 text-sm">
-            Don't have an account?{" "}
-            <Link to="/register" className="text-indigo-400 font-bold hover:text-white transition-colors">
-              Apply for Access
-            </Link>
-          </p>
         </div>
-      </div>
-
+        
+        <div className="text-center mt-8 text-slate-600 text-xs">
+           <span className="opacity-50">Secure Connection 256-bit SSL</span>
+        </div>
+      </motion.div>
     </div>
   );
 }

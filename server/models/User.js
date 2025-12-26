@@ -1,22 +1,35 @@
 const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema({
-  // Common Fields
+  // REQUIRED ACCOUNT FIELDS
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ["startup", "corporate"], required: true },
-  
-  // Specific to Startup
+
+  // ROLES
+  role: {
+    type: String,
+    enum: ["startup", "corporate", "admin"],
+    required: true,
+    default: "startup",
+  },
+
+  // STARTUP INFO
   companyName: { type: String },
   industry: { type: String },
-  fundingStage: { type: String }, // e.g., Seed, Series A
-  pitchDeckUrl: { type: String },
+  fundingStage: { type: String }, // Seed / Pre-seed / Series A etc
+  techStack: [String],            // ["React","Node","AI"]
 
-  // Specific to Corporate
+  // CORPORATE INFO
   department: { type: String },
-  pilotBudget: { type: String }, // e.g., $50k, $100k
-  innovationFocus: { type: String }, // e.g., AI, Supply Chain
+  pilotBudget: { type: String },
+  innovationFocus: { type: String },
+
+  // PROFILE EXTRAS
+  website: { type: String },
+  location: { type: String },
+  bio: { type: String },
+  avatar: { type: String },
 
   createdAt: { type: Date, default: Date.now },
 });

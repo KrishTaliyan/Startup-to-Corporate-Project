@@ -1,47 +1,45 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
+// 🔐 PROTECT ROUTES
 const protect = async (req, res, next) => {
-  let token;
+  try {
+    let token = null;
 
-  if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
-    try {
-      token = req.headers.authorization.split(" ")[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = await User.findById(decoded.user.id).select("-password");
-      next();
-    } catch (error) {
-      console.error(error);
-      res.status(401).json({ message: "Not authorized, token failed" });
-    }
-  } else if (req.header("x-auth-token")) {
-    try {
+    if (req.headers.authorization) {
+      token = req.headers.authorization.replace("Bearer ", "").trim();
+    } else if (req.header("x-auth-token")) {
       token = req.header("x-auth-token");
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = await User.findById(decoded.user.id).select("-password");
-      next();
-    } catch (error) {
-      res.status(401).json({ message: "Not authorized" });
     }
-  } else {
-    res.status(401).json({ message: "Not authorized, no token" });
-  }
-};
 
-const isStartup = (req, res, next) => {
-  if (req.user && req.user.role === "startup") {
+    if (!token) return res.status(401).json({ message: "No token. Access denied." });
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = await User.findById(decoded.user.id).select("-password");
+
+    if (!req.user) return res.status(401).json({ message: "User not found." });
+
     next();
-  } else {
-    res.status(403).json({ message: "Access denied. Startups only." });
+  } catch (error) {
+    console.error("AUTH ERROR:", error.message);
+    res.status(401).json({ message: "Token expired or invalid." });
   }
 };
 
-const isCorporate = (req, res, next) => {
-  if (req.user && req.user.role === "corporate") {
-    next();
-  } else {
-    res.status(403).json({ message: "Access denied. Corporates only." });
-  }
-};
+// ROLE CHECKS
+const isStartup = (req, res, next) =>
+  req.user?.role === "startup"
+    ? next()
+    : res.status(403).json({ message: "Startup access only" });
 
-module.exports = { protect, isStartup, isCorporate };
+const isCorporate = (req, res, next) =>
+  req.user?.role === "corporate"
+    ? next()
+    : res.status(403).json({ message: "Corporate access only" });
+
+const isAdmin = (req, res, next) =>
+  req.user?.role === "admin"
+    ? next()
+    : res.status(403).json({ message: "Admin only" });
+
+module.exports = { protect, isStartup, isCorporate, isAdmin };

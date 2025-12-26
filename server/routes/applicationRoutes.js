@@ -1,71 +1,85 @@
 const express = require("express");
 const router = express.Router();
-const Application = require("../models/Application");
-const Opportunity = require("../models/Opportunity");
-const Notification = require("../models/Notification");
-
-// ✅ FIX: Changed to 'authMiddleware'
 const { protect } = require("../middleware/authMiddleware");
+const ConnectionRequest = require("../models/ConnectionRequest");
+const User = require("../models/User");
 
-// Apply to a job
-router.post("/apply/:id", protect, async (req, res) => {
+// 1. SEND REQUEST (Startup -> Corporate)
+router.post("/send", protect, async (req, res) => {
   try {
-    const opp = await Opportunity.findById(req.params.id);
-    if (!opp) return res.status(404).json({ message: "Job not found" });
+    const { receiverId, message, targetCompanyName } = req.body;
 
-    // Check if already applied
-    const existing = await Application.findOne({ opportunityId: req.params.id, startupId: req.user.id });
-    if (existing) return res.status(400).json({ message: "Already applied" });
-
-    const newApp = new Application({
-      opportunityId: req.params.id,
-      startupId: req.user.id,
-      corporateId: opp.postedBy,
-      startupName: req.user.companyName,
-      startupEmail: req.user.email
+    // Check if request already exists
+    const existing = await ConnectionRequest.findOne({
+      sender: req.user.id,
+      receiver: receiverId,
+      status: "Pending"
     });
-    await newApp.save();
 
-    // Notify Corporate
-    await new Notification({
-      userId: opp.postedBy,
-      type: "info",
-      message: `🚀 New Proposal received from ${req.user.companyName}`
-    }).save();
+    if (existing) {
+      return res.status(400).json({ message: "Request already sent to this company" });
+    }
 
-    res.json({ message: "Applied!" });
-  } catch (err) { res.status(500).json({ message: err.message }); }
+    const newRequest = await ConnectionRequest.create({
+      sender: req.user.id,
+      receiver: receiverId,
+      senderName: req.user.name,
+      senderEmail: req.user.email,
+      targetCompanyName: targetCompanyName,
+      message
+    });
+
+    res.status(201).json(newRequest);
+  } catch (err) {
+    console.error("Error sending request:", err);
+    res.status(500).json({ message: "Server Error" });
+  }
 });
 
-// Get Startup's Applications
-router.get("/startup", protect, async (req, res) => {
-    const apps = await Application.find({ startupId: req.user.id }).populate("opportunityId").sort({ appliedAt: -1 });
-    res.json(apps);
+// 2. GET REQUESTS FOR ME (Corporate View)
+// This fetches all requests where the logged-in user is the RECEIVER
+router.get("/received", protect, async (req, res) => {
+  try {
+    const requests = await ConnectionRequest.find({ receiver: req.user.id })
+      .sort({ createdAt: -1 });
+    res.json(requests);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server Error" });
+  }
 });
 
-// Get Corporate's Applicants
-router.get("/corporate", protect, async (req, res) => {
-    const apps = await Application.find({ corporateId: req.user.id }).populate("opportunityId").sort({ appliedAt: -1 });
-    res.json(apps);
+// 3. GET REQUESTS SENT BY ME (Startup View)
+router.get("/sent", protect, async (req, res) => {
+  try {
+    const requests = await ConnectionRequest.find({ sender: req.user.id })
+      .sort({ createdAt: -1 });
+    res.json(requests);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server Error" });
+  }
 });
 
-// Accept/Reject
+// 4. UPDATE REQUEST STATUS (Accept/Reject)
 router.put("/status/:id", protect, async (req, res) => {
   try {
-    const { status } = req.body;
-    const app = await Application.findById(req.params.id).populate('opportunityId');
-    app.status = status;
-    await app.save();
+    const { status } = req.body; // "Accepted" or "Rejected"
+    const request = await ConnectionRequest.findById(req.params.id);
 
-    // Notify Startup
-    await new Notification({
-      userId: app.startupId,
-      type: status === 'Accepted' ? "success" : "error",
-      message: `Your proposal for ${app.opportunityId.title} was ${status}`
-    }).save();
+    if (!request) return res.status(404).json({ message: "Request not found" });
 
-    res.json(app);
-  } catch (err) { res.status(500).json({ message: err.message }); }
+    // Ensure only the receiver can update status
+    if (request.receiver.toString() !== req.user.id) {
+      return res.status(401).json({ message: "Not authorized" });
+    }
+
+    request.status = status;
+    await request.save();
+    res.json(request);
+  } catch (err) {
+    res.status(500).json({ message: "Server Error" });
+  }
 });
 
 module.exports = router;

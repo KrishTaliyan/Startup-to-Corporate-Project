@@ -3,28 +3,45 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { AuthProvider, useAuth } from "./Context/AuthContext";
 
 // Import Pages
-// NOTE: Make sure all these files inside pages folder are named .jsx (e.g., Home.jsx)
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
-import StartupDashboard from "./pages/StartupDashboard";
-import CorporateDashboard from "./pages/CorporateDashboard";
+import Onboarding from "./pages/Onboarding";
+
+// --- DASHBOARDS ---
+import StartupDashboard from "./pages/StartupDashboard"; // Empty (New User)
+import StartupDashboardActive from "./pages/StartupDashboardActive"; // Active (Old User)
+import CorporateDashboard from "./pages/CorporateDashboard"; // Empty (New User)
+import CorporateDashboardActive from "./pages/CorporateDashboardActive"; // Active (Old User) - ⭐ NEW IMPORT
+import AdminDashboard from "./pages/AdminDashboard";
+
 import Profile from "./pages/Profile";
 import Chat from "./pages/Chat";
 import Events from "./pages/Events";
 import Community from "./pages/Community";
 
-// Protected Route Logic
+// --- PROTECTED ROUTE ---
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading } = useAuth();
 
-  if (loading) return <div className="min-h-screen bg-[#0B0C10] flex items-center justify-center text-white">Loading...</div>;
+  // 1. Loading State
+  if (loading) return <div className="min-h-screen bg-[#09090b] flex items-center justify-center text-white">Loading System...</div>;
   
-  if (!user) return <Navigate to="/login" />;
+  // 2. Not Logged In -> Go to Login
+  if (!user) return <Navigate to="/login" replace />;
   
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
-     // Redirect to the correct dashboard based on role
-     return <Navigate to={user.role === 'startup' ? '/dashboard' : '/corporate'} />;
+  // 3. Role Check
+  if (allowedRoles) {
+      const userRole = user.role ? user.role.toLowerCase() : "";
+      
+      if (!allowedRoles.includes(userRole)) {
+          // Redirect based on role if they are in the wrong place
+          if (userRole === 'admin') return <Navigate to="/admin" replace />;
+          // ⭐ FIX: Send Old Corporate users to their Active Dashboard if they get lost
+          if (userRole === 'corporate') return <Navigate to="/corporate-active" replace />;
+          // ⭐ FIX: Send Old Startup users to their Active Dashboard
+          return <Navigate to="/dashboard-active" replace />;
+      }
   }
 
   return children;
@@ -35,11 +52,24 @@ export default function App() {
     <Router>
       <AuthProvider>
         <Routes>
+          {/* Public Routes */}
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
-          {/* Startup Routes */}
+          {/* ⭐ ONBOARDING ROUTE */}
+          <Route 
+            path="/onboarding" 
+            element={
+              <ProtectedRoute>
+                <Onboarding />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* --- STARTUP ROUTES --- */}
+          
+          {/* 1. Empty Dashboard (Post-Onboarding / New User) */}
           <Route 
             path="/dashboard" 
             element={
@@ -49,12 +79,44 @@ export default function App() {
             } 
           />
 
-          {/* Corporate Routes */}
+          {/* 2. Active Dashboard (Returning / Old User) */}
+          <Route 
+            path="/dashboard-active" 
+            element={
+              <ProtectedRoute allowedRoles={['startup']}>
+                <StartupDashboardActive />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* --- CORPORATE ROUTES --- */}
+
+          {/* 1. Empty Dashboard (Post-Onboarding / New User) */}
           <Route 
             path="/corporate" 
             element={
               <ProtectedRoute allowedRoles={['corporate']}>
                 <CorporateDashboard />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* 2. Active Dashboard (Returning / Old User) - ⭐ NEW ROUTE */}
+          <Route 
+            path="/corporate-active" 
+            element={
+              <ProtectedRoute allowedRoles={['corporate']}>
+                <CorporateDashboardActive />
+              </ProtectedRoute>
+            } 
+          />
+
+          {/* ADMIN ROUTE */}
+          <Route 
+            path="/admin" 
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDashboard />
               </ProtectedRoute>
             } 
           />
