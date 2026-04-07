@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:5000/api";
+const API_BASE = "https://compass-backend-ndrm.onrender.com/api";
 
 /* =========================
    AUTH
@@ -98,8 +98,9 @@ export const updateMyProfile = async (token, profileData) => {
   });
   return res.json();
 };
+
 export const getNotifications = async (token) => {
-  const res = await fetch("http://localhost:5000/api/posts/notifications", {
+  const res = await fetch(`${API_BASE}/posts/notifications`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return res.json();
