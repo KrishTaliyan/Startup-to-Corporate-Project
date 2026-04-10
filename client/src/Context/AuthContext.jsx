@@ -10,8 +10,6 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // ⭐ NEW: Global State for Marketplace Posts (Mandates)
-  // We initialize from localStorage so data persists on refresh
   const [globalMandates, setGlobalMandates] = useState(() => {
     const saved = localStorage.getItem("cx_global_mandates");
     return saved ? JSON.parse(saved) : [
@@ -19,46 +17,33 @@ export function AuthProvider({ children }) {
     ];
   });
 
-  // 1. Load User on Boot
   useEffect(() => {
     const storedUser = localStorage.getItem("cx_user");
     if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        localStorage.removeItem("cx_user");
-      }
+      try { setUser(JSON.parse(storedUser)); } catch (e) { localStorage.removeItem("cx_user"); }
     }
     setLoading(false);
   }, []);
 
-  // Sync Mandates to LocalStorage whenever they change
   useEffect(() => {
     localStorage.setItem("cx_global_mandates", JSON.stringify(globalMandates));
   }, [globalMandates]);
 
-  // ⭐ NEW: Function for CORPORATE to create a post
   const addMandate = (postData) => {
-    const newPost = {
-      ...postData,
-      id: Date.now(),
-      applicants: 0,
-      timestamp: new Date().toLocaleDateString()
-    };
+    const newPost = { ...postData, id: Date.now(), applicants: 0, timestamp: new Date().toLocaleDateString() };
     setGlobalMandates((prev) => [newPost, ...prev]);
-    console.log("🟢 Post Broadcasted to Marketplace");
   };
 
-  // 2. FAIL-SAFE LOGIN FUNCTION
-  const login = async (email, password) => {
+  // ⭐ FIX: Accept 'selectedRole' so backend/offline logic knows what UI toggled
+  const login = async (email, password, selectedRole) => {
     setLoading(true); 
-    console.log("🔵 Attempting Login...");
 
     try {
         const response = await fetch("http://localhost:5000/api/auth/login", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password }),
+            // Send role to backend just in case
+            body: JSON.stringify({ email, password, role: selectedRole }),
         });
 
         const data = await response.json();
@@ -71,38 +56,36 @@ export function AuthProvider({ children }) {
             return { success: false, message: data.message };
         }
     } catch (error) {
-        return performOfflineLogin(email);
+        // Pass selectedRole to offline login
+        return performOfflineLogin(email, selectedRole);
     }
   };
 
-  // 3. REGISTER FUNCTION
   const register = async (userData) => {
     setLoading(true);
     try {
         const response = await fetch("http://localhost:5000/api/auth/register", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(userData),
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(userData),
         });
-
         const data = await response.json();
 
         if (response.ok) {
             handleLoginSuccess(data.user);
             return { success: true, role: data.user.role };
         } else {
-            if (response.status === 404) return login(userData.email, userData.password);
+            if (response.status === 404) return login(userData.email, userData.password, userData.role);
             setLoading(false);
             return { success: false, message: data.message || "Registration failed" };
         }
     } catch (error) {
-        return performOfflineLogin(userData.email);
+        return performOfflineLogin(userData.email, userData.role);
     }
   };
 
-  // --- HELPER: OFFLINE LOGIC ---
-  const performOfflineLogin = async (email) => {
-        const mockRole = (email.includes("admin") || email.includes("corp")) ? "corporate" : "startup";
+  // ⭐ FIX: Honor the role selected by the user in offline mode
+  const performOfflineLogin = async (email, selectedRole) => {
+        // If UI role is provided, use it. Otherwise fallback to email check.
+        const mockRole = selectedRole ? selectedRole.toLowerCase() : ((email.includes("admin") || email.includes("corp")) ? "corporate" : "startup");
         const namePart = email.split("@")[0];
         
         const offlineUser = {
@@ -120,9 +103,7 @@ export function AuthProvider({ children }) {
   };
 
   const handleLoginSuccess = (userData) => {
-      if (userData.role) {
-          userData.role = userData.role.toLowerCase();
-      }
+      if (userData.role) { userData.role = userData.role.toLowerCase(); }
       localStorage.setItem("cx_user", JSON.stringify(userData));
       setUser(userData);
       setLoading(false); 
@@ -140,21 +121,7 @@ export function AuthProvider({ children }) {
       localStorage.setItem("cx_user", JSON.stringify(updated));
   };
 
-  // ⭐ UPDATED VALUE EXPORT
-  const value = { 
-    user, 
-    login, 
-    logout, 
-    register, 
-    updateUser, 
-    loading,
-    globalMandates, // Both roles can see this
-    addMandate      // Corporate uses this to post
-  };
+  const value = { user, login, logout, register, updateUser, loading, globalMandates, addMandate };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {!loading && children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
 }
